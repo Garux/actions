@@ -171,6 +171,8 @@ const getCommitsSinceRelease = async (
   if (resp?.data?.commits) {
     commits = resp.data.commits;
   }
+  commits.reverse();
+
   core.debug(`Currently ${commits.length} number of commits between ${previousReleaseRef} and ${currentSha}`);
 
   core.endGroup();
