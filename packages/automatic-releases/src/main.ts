@@ -62,8 +62,32 @@ const createReleaseTag = async (client: github.GitHub, refInfo: Octokit.GitCreat
   core.endGroup();
 };
 
-const deletePreviousGitHubRelease = async (client: github.GitHub, releaseInfo: Octokit.ReposGetReleaseByTagParams) => {
-  core.startGroup(`Deleting GitHub releases associated with the tag "${releaseInfo.tag}"`);
+const deletePreviousGitHubRelease = async (client: github.GitHub, releaseTitle: string, releaseInfo: Octokit.ReposGetReleaseByTagParams) => {
+  core.startGroup(`Deleting GitHub releases associated with the tag "${releaseInfo.tag}" or name "${releaseTitle}"`);
+  try {
+    core.info(`Trying latest release to match the "${releaseTitle}" name`);
+    const resp = await client.repos.getLatestRelease( { owner: releaseInfo.owner, repo: releaseInfo.repo } );
+
+    if( resp.data.name === releaseTitle ){
+      core.info(`Deleting release: ${resp.data.id}`);
+      await client.repos.deleteRelease({
+        owner: releaseInfo.owner,
+        repo: releaseInfo.repo,
+        release_id: resp.data.id,
+      });
+      if( resp.data.tag_name !== releaseInfo.tag ){ // also prune its tag, unless it's the tag for new release
+        core.info(`Deleting tag: ${resp.data.tag_name}`);
+        await client.git.deleteRef({
+          owner: releaseInfo.owner,
+          repo: releaseInfo.repo,
+          ref: `tags/${resp.data.tag_name}`
+        });
+      }
+    }
+  } catch (err: any) {
+    core.info(`Could not find release associated with name "${releaseTitle}" (${err.message})`);
+  }
+
   try {
     core.info(`Searching for releases corresponding to the "${releaseInfo.tag}" tag`);
     const resp = await client.repos.getReleaseByTag(releaseInfo);
@@ -283,7 +307,7 @@ export const main = async (): Promise<void> => {
         sha: context.sha,
       });
 
-      await deletePreviousGitHubRelease(client, {
+      await deletePreviousGitHubRelease(client, releaseTitle, {
         owner: context.repo.owner,
         repo: context.repo.repo,
         tag: args.automaticReleaseTag,
