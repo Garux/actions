@@ -94,40 +94,24 @@ const generateNewGitHubRelease = async (
 
 const searchForPreviousReleaseTag = async (
   client: github.GitHub,
+  currentReleaseTitile: string,
   currentReleaseTag: string,
   tagInfo: Octokit.ReposListTagsParams,
 ): Promise<string> => {
-  const validSemver = semverValid(currentReleaseTag);
-  if (!validSemver) {
-    throw new Error(
-      `The parameter "automatic_release_tag" was not set and the current tag "${currentReleaseTag}" does not appear to conform to semantic versioning.`,
-    );
+  const releases = await client.repos.listReleases( { owner: tagInfo.owner, repo: tagInfo.repo, page: 1, per_page: 2 } );
+
+  if (releases.data.length === 0) {
+    return '';
   }
 
-  const listTagsOptions = client.repos.listTags.endpoint.merge(tagInfo);
-  const tl = await client.paginate(listTagsOptions);
-
-  const tagList = tl
-    .map((tag) => {
-      core.debug(`Currently processing tag ${tag.name}`);
-      const t = semverValid(tag.name);
-      return {
-        ...tag,
-        semverTag: t,
-      };
-    })
-    .filter((tag) => tag.semverTag !== null)
-    .sort((a, b) => semverRcompare(a.semverTag, b.semverTag));
-
-  let previousReleaseTag = '';
-  for (const tag of tagList) {
-    if (semverLt(tag.semverTag, currentReleaseTag)) {
-      previousReleaseTag = tag.name;
-      break;
-    }
+  if( releases.data.length === 2
+    && ( releases.data[0].name === currentReleaseTitile
+      || releases.data[0].tag_name === currentReleaseTag ) ){
+    return releases.data[1].tag_name;
   }
-
-  return previousReleaseTag;
+  else{
+    return releases.data[0].tag_name;
+  }
 };
 
 const getCommitsSinceRelease = async (
@@ -270,9 +254,10 @@ export const main = async (): Promise<void> => {
       );
     }
 
-    const previousReleaseTag = args.automaticReleaseTag
-      ? args.automaticReleaseTag
-      : await searchForPreviousReleaseTag(client, releaseTag, {
+    const releaseTitle = args.releaseTitle ? args.releaseTitle : releaseTag;
+
+    const previousReleaseTag =
+        await searchForPreviousReleaseTag(client, releaseTitle, releaseTag, {
           owner: context.repo.owner,
           repo: context.repo.repo,
         });
@@ -309,7 +294,7 @@ export const main = async (): Promise<void> => {
       owner: context.repo.owner,
       repo: context.repo.repo,
       tag_name: releaseTag,
-      name: args.releaseTitle ? args.releaseTitle : releaseTag,
+      name: releaseTitle,
       draft: args.draftRelease,
       prerelease: args.preRelease,
       body: changelog,
