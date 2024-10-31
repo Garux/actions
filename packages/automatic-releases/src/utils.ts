@@ -97,10 +97,10 @@ const getFormattedChangelogEntry = (parsedCommit: ParsedCommits): string => {
   }
 
   entry = `- ${sha}: ${parsedCommit.header} (${author})${prString}`;
-  if (parsedCommit.type) {
-    const scopeStr = parsedCommit.scope ? `**${parsedCommit.scope}**: ` : '';
-    entry = `- ${scopeStr}${parsedCommit.subject}${prString} ([${author}](${url}))`;
-  }
+  // if (parsedCommit.type) {
+  //   const scopeStr = parsedCommit.scope ? `**${parsedCommit.scope}**: ` : '';
+  //   entry = `- ${scopeStr}${parsedCommit.subject}${prString} ([${author}](${url}))`;
+  // }
 
   return entry;
 };
